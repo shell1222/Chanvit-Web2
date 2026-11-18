@@ -1,15 +1,197 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chanvit Web2</title>
-  <style>
-    body { font-family: sans-serif; margin: 0; padding: 40px 16px; text-align: center; background: #f5f7fa; color: #222; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ชาญวิทย์ฟาร์ม - บันทึกการประมูลกุ้ง</title>
+<link rel="icon" type="image/jpeg" href="logo.jpg">
+<link rel="apple-touch-icon" href="logo.jpg">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.1.0/dist/tabler-icons.min.css">
+<style>
+  :root{
+    --primary:#0f6e56; --primary-dark:#085041; --primary-light:#e1f5ee;
+    --danger:#a32d2d; --danger-light:#fcebeb;
+    --bg:#f6f7f5; --card:#ffffff; --border:#e2e5e1;
+    --text:#1f2622; --text-secondary:#5f6b65;
+    --brand:#e8632a; --brand-dark:#c84e1c; --brand-light:#fdeee6;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI',-apple-system,'Sarabun',sans-serif;
+    background:
+      radial-gradient(1200px 400px at 100% -50px, rgba(232,99,42,0.05), transparent 60%),
+      radial-gradient(1000px 360px at -10% 0, rgba(15,110,86,0.06), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--text); min-height:100vh; padding-bottom:60px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .topbar{
+    background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);
+    color:#fff; padding:12px 16px; display:flex; align-items:center; gap:11px;
+    position:sticky; top:0; z-index:50;
+    box-shadow:0 4px 16px rgba(8,80,65,0.18); border-bottom:3px solid var(--brand);
+  }
+  .logo-badge{width:44px;height:44px;border-radius:12px;background:#fff;flex-shrink:0;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.18);}
+  .logo-badge img{width:100%;height:100%;object-fit:contain;padding:3px;}
+  .brand-text{display:flex;flex-direction:column;line-height:1.25;}
+  .brand-text .title{font-size:16px;font-weight:700;}
+  .brand-text .subtitle{font-size:11px;opacity:.85;}
+
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 6px;max-width:900px;margin:0 auto;justify-content:center;}
+  .tab{padding:9px 15px;border-radius:999px;font-size:13px;font-weight:600;background:var(--card);border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:6px;font-family:inherit;}
+  .tab.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 3px 10px rgba(15,110,86,0.25);}
+
+  .container{max-width:760px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,40,33,0.04),0 6px 18px rgba(16,40,33,0.04);}
+  .card h2{font-size:15px;font-weight:700;margin-bottom:14px;padding-bottom:12px;display:flex;align-items:center;gap:9px;color:var(--primary-dark);border-bottom:1px solid var(--border);}
+  .card h2 i{font-size:16px;color:var(--brand);background:var(--brand-light);width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;}
+
+  label{font-size:13px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;}
+  input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fcfdfc;color:var(--text);font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);}
+  .field{margin-bottom:12px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:420px){.row2{grid-template-columns:1fr;}}
+
+  .date-row{display:flex;gap:8px;align-items:center;}
+  .date-row input{flex:1;font-size:16px;}
+  .icon-btn{width:42px;height:42px;flex-shrink:0;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--primary);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .date-label{margin-top:10px;font-size:14px;color:var(--primary-dark);font-weight:600;text-align:center;}
+  .chip{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;background:var(--brand-light);color:var(--brand-dark);vertical-align:middle;}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:11px 18px;border:none;border-radius:10px;background:var(--primary);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn.full{width:100%;justify-content:center;}
+  .btn:active{transform:translateY(1px);}
+  .total-box{background:var(--brand-light);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--brand-dark);}
+  .total-box b{font-size:18px;}
+
+  .entry{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;}
+  .entry .main{flex:1;min-width:0;}
+  .entry .top{display:flex;justify-content:space-between;gap:8px;font-weight:600;}
+  .entry .meta{font-size:13px;color:var(--text-secondary);margin-top:4px;}
+  .entry .amt{color:var(--primary-dark);white-space:nowrap;}
+  .del{border:none;background:var(--danger-light);color:var(--danger);border-radius:8px;width:32px;height:32px;cursor:pointer;flex-shrink:0;}
+  .empty{text-align:center;color:var(--text-secondary);font-size:14px;padding:16px 0;}
+  .summary{display:flex;justify-content:space-between;font-size:14px;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border);font-weight:600;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
 </head>
 <body>
-  <h1>Chanvit Web2</h1>
-  <p>เว็บใหม่กำลังสร้าง</p>
+
+<div class="topbar">
+  <div class="logo-badge"><img src="logo.jpg" alt="โลโก้ชาญวิทย์ฟาร์ม"></div>
+  <div class="brand-text">
+    <span class="title">ชาญวิทย์ฟาร์ม</span>
+    <span class="subtitle">ระบบบันทึกการประมูลกุ้ง</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active"><i class="ti ti-gavel"></i> ลงข้อมูลประมูล</button>
+</div>
+
+<div class="container">
+  <!-- ส่วนที่ 1: เลือกวันที่ -->
+  <div class="card">
+    <h2><i class="ti ti-calendar"></i> วันที่ลงข้อมูล</h2>
+    <div class="date-row">
+      <button class="icon-btn" onclick="shiftDate(-1)" aria-label="วันก่อนหน้า"><i class="ti ti-chevron-left"></i></button>
+      <input type="date" id="date" onchange="render()">
+      <button class="icon-btn" onclick="shiftDate(1)" aria-label="วันถัดไป"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="date-label" id="dateLabel"></div>
+  </div>
+
+  <!-- ส่วนที่ 2: ลงข้อมูลการประมูล -->
+  <div class="card">
+    <h2><i class="ti ti-gavel"></i> ลงข้อมูลการประมูลกุ้ง</h2>
+    <form id="form" onsubmit="addEntry(event)">
+      <div class="row2">
+        <div class="field"><label>บ่อ</label><input id="pond" placeholder="เช่น บ่อ 7" required></div>
+        <div class="field"><label>ผู้ประมูล / แพ</label><input id="buyer" placeholder="ชื่อผู้ประมูล" required></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>ขนาดกุ้ง (ตัว/กก.)</label><input id="size" type="number" inputmode="decimal" step="any" min="0" placeholder="เช่น 40"></div>
+        <div class="field"><label>น้ำหนัก (กก.)</label><input id="weight" type="number" inputmode="decimal" step="any" min="0" placeholder="0" required oninput="calc()"></div>
+      </div>
+      <div class="field"><label>ราคาประมูล (บาท/กก.)</label><input id="price" type="number" inputmode="decimal" step="any" min="0" placeholder="0" required oninput="calc()"></div>
+      <div class="total-box"><span>รวมเป็นเงิน</span><b id="total">0 บาท</b></div>
+      <div class="field"><label>หมายเหตุ</label><textarea id="note" rows="2" placeholder="ถ้ามี"></textarea></div>
+      <button class="btn full" type="submit"><i class="ti ti-device-floppy"></i> บันทึก</button>
+    </form>
+  </div>
+
+  <!-- รายการของวันที่เลือก -->
+  <div class="card">
+    <h2><i class="ti ti-list-details"></i> รายการวันนี้ <span id="count" class="chip">0</span></h2>
+    <div id="list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const KEY = 'chanvit-auctions';
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2});
+
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } }
+  function save(data){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e){} }
+
+  function toISO(d){ const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
+  function shiftDate(n){ const d = new Date($('date').value + 'T00:00'); d.setDate(d.getDate()+n); $('date').value = toISO(d); render(); }
+
+  function calc(){ $('total').textContent = fmt(($('weight').value||0) * ($('price').value||0)) + ' บาท'; }
+
+  function addEntry(e){
+    e.preventDefault();
+    const data = load();
+    data.push({
+      id: Date.now(), date: $('date').value,
+      pond: $('pond').value.trim(), buyer: $('buyer').value.trim(),
+      size: $('size').value, weight: Number($('weight').value), price: Number($('price').value),
+      note: $('note').value.trim()
+    });
+    save(data);
+    ['size','weight','price','note'].forEach(id => $(id).value = '');
+    calc(); render(); toast('บันทึกแล้ว');
+  }
+
+  function delEntry(id){
+    if(!confirm('ลบรายการนี้?')) return;
+    save(load().filter(x => x.id !== id)); render(); toast('ลบแล้ว');
+  }
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function render(){
+    const date = $('date').value;
+    const d = new Date(date + 'T00:00');
+    const isToday = date === toISO(new Date());
+    $('dateLabel').innerHTML = d.toLocaleDateString('th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) + (isToday ? '<span class="chip">วันนี้</span>' : '');
+
+    const items = load().filter(x => x.date === date);
+    $('count').textContent = items.length;
+    if(!items.length){ $('list').innerHTML = '<div class="empty">ยังไม่มีข้อมูลในวันนี้</div>'; return; }
+    let w = 0, t = 0;
+    $('list').innerHTML = items.map(x => {
+      const amt = x.weight * x.price; w += x.weight; t += amt;
+      return `<div class="entry"><div class="main">
+        <div class="top"><span>${esc(x.pond)} · ${esc(x.buyer)}</span><span class="amt">${fmt(amt)} ฿</span></div>
+        <div class="meta">${x.size ? 'ขนาด ' + fmt(x.size) + ' ตัว/กก. · ' : ''}${fmt(x.weight)} กก. × ${fmt(x.price)} บาท</div>
+        ${x.note ? `<div class="meta">${esc(x.note)}</div>` : ''}
+      </div><button class="del" onclick="delEntry(${x.id})" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`;
+    }).join('') + `<div class="summary"><span>รวม ${fmt(w)} กก.</span><span>${fmt(t)} บาท</span></div>`;
+  }
+
+  let tt;
+  function toast(msg){ $('toast').textContent = msg; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 1500); }
+
+  $('date').value = toISO(new Date());
+  render();
+</script>
 </body>
 </html>
