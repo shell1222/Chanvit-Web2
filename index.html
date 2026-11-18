@@ -115,6 +115,25 @@
   .dayrow{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;border:none;border-bottom:1px solid var(--border);background:none;padding:10px 2px;font-family:inherit;font-size:14px;color:var(--text);cursor:pointer;text-align:left;}
   .dayrow small{display:block;font-size:12px;color:var(--text-secondary);}
   .dayrow b{font-variant-numeric:tabular-nums;}
+  .records{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  @media (max-width:480px){.records{grid-template-columns:1fr;}}
+  .rec{border-radius:16px;padding:14px 16px;color:#fff;box-shadow:0 6px 18px rgba(16,40,33,0.10);}
+  .rec.kg{background:linear-gradient(135deg,var(--brand) 0%,var(--brand-dark) 100%);}
+  .rec.net{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);}
+  .rec .rl{font-size:13px;opacity:.9;display:flex;align-items:center;gap:6px;}
+  .rec .rm{font-size:20px;font-weight:700;margin-top:6px;}
+  .rec .rv{font-size:15px;margin-top:2px;opacity:.95;font-variant-numeric:tabular-nums;}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--text-secondary);margin-bottom:10px;flex-wrap:wrap;}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:middle;}
+  .mrow{padding:10px 0;border-bottom:1px solid var(--border);}
+  .mrow:last-child{border-bottom:none;}
+  .mrow .mh{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;margin-bottom:6px;}
+  .mrow .mh .ti-crown{color:#d9a400;}
+  .mbar{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;font-size:12px;margin-top:4px;}
+  .mbar .t{height:9px;border-radius:999px;background:#eef1ee;overflow:hidden;}
+  .mbar .t i{display:block;height:100%;border-radius:999px;}
+  .mbar b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+  .mbar b.neg{color:var(--danger);}
   .summary{display:flex;justify-content:space-between;font-size:14px;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border);font-weight:600;}
   .pond-row{width:100%;text-align:left;border:1px solid var(--border);background:#fcfdfc;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;font-family:inherit;color:var(--text);display:flex;align-items:center;gap:10px;}
   .pond-row:hover{border-color:var(--primary);}
@@ -163,7 +182,25 @@
 <div class="tabs">
   <button class="tab active" data-tab="entry" onclick="showTab('entry')"><i class="ti ti-gavel"></i> ลงข้อมูลประมูล</button>
   <button class="tab" data-tab="info" onclick="showTab('info')"><i class="ti ti-truck"></i> ข้อมูลกุ้ง</button>
+  <button class="tab" data-tab="stats" onclick="showTab('stats')"><i class="ti ti-trophy"></i> สถิติ</button>
   <button class="tab" data-tab="summary" onclick="showTab('summary')"><i class="ti ti-chart-bar"></i> สรุปกำไร</button>
+</div>
+
+<!-- ===== แท็บสถิติ (record รายเดือน) ===== -->
+<div class="container" id="tab-stats" hidden>
+  <div class="card">
+    <h2><i class="ti ti-calendar-stats"></i> เลือกปี</h2>
+    <div class="presets" id="yearChips" style="margin-bottom:0"></div>
+  </div>
+  <div class="records">
+    <div class="rec kg"><div class="rl"><i class="ti ti-trophy"></i> เดือนที่จับได้เยอะที่สุด</div><div class="rm" id="rKgMonth">-</div><div class="rv" id="rKgVal"></div></div>
+    <div class="rec net"><div class="rl"><i class="ti ti-trophy"></i> เดือนที่กำไรเยอะที่สุด</div><div class="rm" id="rNetMonth">-</div><div class="rv" id="rNetVal"></div></div>
+  </div>
+  <div class="card">
+    <h2><i class="ti ti-chart-bar"></i> สถิติรายเดือน</h2>
+    <div class="legend"><span><i style="background:var(--brand)"></i> น้ำหนักที่จับ (กก.)</span><span><i style="background:var(--primary)"></i> กำไรสุทธิ (บาท)</span></div>
+    <div id="mList"></div>
+  </div>
 </div>
 
 <!-- ===== แท็บข้อมูลกุ้ง ===== -->
@@ -451,6 +488,8 @@
     $('tab-entry').hidden = t !== 'entry';
     $('tab-summary').hidden = t !== 'summary';
     $('tab-info').hidden = t !== 'info';
+    $('tab-stats').hidden = t !== 'stats';
+    if(t === 'stats') loadStats();
     if(t === 'summary') loadSummary();
     if(t === 'info') watchInfo();
     window.scrollTo(0, 0);
@@ -597,6 +636,53 @@
         <div class="meta"><i class="ti ti-user"></i> คนซื้อ: ${esc(x.buyer)}</div>
         <div class="meta"><i class="ti ti-truck"></i> ทะเบียนรถ: ${x.plate ? esc(x.plate) : '-'}</div>
       </div><button class="del" onclick="delInfo('${x.id}')" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`).join('');
+  }
+
+  // ===== สถิติรายเดือน =====
+  let statMonths = [], statYear = 'all';
+  const monthName = ym => new Date(ym + '-01T00:00').toLocaleDateString('th-TH', {month:'long', year:'numeric'});
+
+  async function loadStats(){
+    $('mList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    try {
+      const [a, c] = await Promise.all([col.get(), costCol.get()]);
+      // รวมเป็นรอบจับ (วัน+บ่อ) แล้วรวมเป็นเดือน
+      const lots = {};
+      a.docs.forEach(d => { const x = d.data(), k = x.date + '__' + x.pond;
+        const l = lots[k] = lots[k] || {date:x.date, kg:0, rev:0, cost:0};
+        l.kg += x.weight; l.rev += x.weight * x.price; });
+      c.docs.forEach(d => { const x = d.data(), l = lots[x.date + '__' + x.pond]; if(l) l.cost = costTotal(x); });
+      const m = {};
+      Object.values(lots).forEach(l => { const ym = l.date.slice(0,7);
+        const o = m[ym] = m[ym] || {ym, kg:0, rev:0, cost:0, n:0};
+        o.kg += l.kg; o.rev += l.rev; o.cost += l.cost; o.n++; });
+      statMonths = Object.values(m).map(o => ({...o, net: o.rev - o.cost})).sort((x,y) => y.ym.localeCompare(x.ym));
+      const years = [...new Set(statMonths.map(o => o.ym.slice(0,4)))].sort().reverse();
+      if(statYear !== 'all' && !years.includes(statYear)) statYear = 'all';
+      $('yearChips').innerHTML = ['all', ...years].map(y => `<button class="pchip${y === statYear ? ' active' : ''}" onclick="statYear='${y}'; loadStatsView()">${y === 'all' ? 'ทุกปี' : 'ปี ' + (Number(y) + 543)}</button>`).join('');
+      renderStats();
+    } catch(err){ $('mList').innerHTML = '<div class="empty">โหลดข้อมูลไม่ได้: ' + esc(err.message) + '</div>'; }
+  }
+  function loadStatsView(){
+    document.querySelectorAll('#yearChips .pchip').forEach(b => b.classList.toggle('active', b.getAttribute('onclick').includes(`'${statYear}'`)));
+    renderStats();
+  }
+
+  function renderStats(){
+    const M = statYear === 'all' ? statMonths : statMonths.filter(o => o.ym.startsWith(statYear));
+    if(!M.length){
+      ['rKgMonth','rNetMonth'].forEach(id => $(id).textContent = '-'); $('rKgVal').textContent = $('rNetVal').textContent = '';
+      $('mList').innerHTML = '<div class="empty">ยังไม่มีข้อมูล</div>'; return;
+    }
+    const topKg = M.reduce((a,b) => b.kg > a.kg ? b : a), topNet = M.reduce((a,b) => b.net > a.net ? b : a);
+    $('rKgMonth').textContent = monthName(topKg.ym); $('rKgVal').textContent = fmt(topKg.kg) + ' กก.';
+    $('rNetMonth').textContent = monthName(topNet.ym); $('rNetVal').textContent = fmt(topNet.net) + ' บาท';
+    const maxKg = Math.max(1, ...M.map(o => o.kg)), maxNet = Math.max(1, ...M.map(o => Math.abs(o.net)));
+    $('mList').innerHTML = M.map(o => `<div class="mrow">
+      <div class="mh"><span>${monthName(o.ym)} ${o === topKg || o === topNet ? '<i class="ti ti-crown"></i>' : ''}</span><span class="meta" style="margin:0;font-weight:500">${o.n} รอบจับ</span></div>
+      <div class="mbar"><div class="t"><i style="width:${o.kg / maxKg * 100}%;background:var(--brand)"></i></div><b>${fmt(o.kg)} กก.</b></div>
+      <div class="mbar"><div class="t"><i style="width:${Math.abs(o.net) / maxNet * 100}%;background:${o.net < 0 ? 'var(--danger)' : 'var(--primary)'}"></i></div><b${o.net < 0 ? ' class="neg"' : ''}>${fmt(o.net)} ฿</b></div>
+    </div>`).join('');
   }
 
   function gotoDate(d){ $('date').value = d; render(); showTab('entry'); }
