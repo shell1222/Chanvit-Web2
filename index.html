@@ -7,6 +7,20 @@
 <link rel="icon" type="image/jpeg" href="logo.jpg">
 <link rel="apple-touch-icon" href="logo.jpg">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.1.0/dist/tabler-icons.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  // ใช้โปรเจกต์ Firebase เดียวกับเว็บ Chanvit-Farm แต่เก็บใน collection "auctions" แยกต่างหาก
+  firebase.initializeApp({
+    apiKey: "AIzaSyC5frSLzd81k3vP5_U8jynww2hL2Cti-Og",
+    authDomain: "chanvit-farm.firebaseapp.com",
+    projectId: "chanvit-farm",
+    storageBucket: "chanvit-farm.firebasestorage.app",
+    messagingSenderId: "469335713777",
+    appId: "1:469335713777:web:9b58a9c2cfb8c3f1314650"
+  });
+  const db = firebase.firestore();
+</script>
 <style>
   :root{
     --primary:#0f6e56; --primary-dark:#085041; --primary-light:#e1f5ee;
@@ -134,35 +148,48 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const KEY = 'chanvit-auctions';
+  const col = db.collection('auctions');
   const $ = id => document.getElementById(id);
   const fmt = n => Number(n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2});
-
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } }
-  function save(data){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e){} }
+  let items = [], unsub = null;
 
   function toISO(d){ const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
   function shiftDate(n){ const d = new Date($('date').value + 'T00:00'); d.setDate(d.getDate()+n); $('date').value = toISO(d); render(); }
 
   function calc(){ $('total').textContent = fmt(($('weight').value||0) * ($('price').value||0)) + ' บาท'; }
 
-  function addEntry(e){
+  async function addEntry(e){
     e.preventDefault();
-    const data = load();
-    data.push({
-      id: Date.now(), date: $('date').value,
-      pond: $('pond').value.trim(), buyer: $('buyer').value.trim(),
-      size: $('size').value, weight: Number($('weight').value), price: Number($('price').value),
-      note: $('note').value.trim()
-    });
-    save(data);
-    ['size','weight','price','note'].forEach(id => $(id).value = '');
-    calc(); render(); toast('บันทึกแล้ว');
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      await col.add({
+        date: $('date').value,
+        pond: $('pond').value.trim(), buyer: $('buyer').value.trim(),
+        size: $('size').value ? Number($('size').value) : null,
+        weight: Number($('weight').value), price: Number($('price').value),
+        note: $('note').value.trim(),
+        createdAt: Date.now()
+      });
+      ['size','weight','price','note'].forEach(id => $(id).value = '');
+      calc(); toast('บันทึกแล้ว');
+    } catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
+    btn.disabled = false;
   }
 
-  function delEntry(id){
+  async function delEntry(id){
     if(!confirm('ลบรายการนี้?')) return;
-    save(load().filter(x => x.id !== id)); render(); toast('ลบแล้ว');
+    try { await col.doc(id).delete(); toast('ลบแล้ว'); }
+    catch(err){ alert('ลบไม่สำเร็จ: ' + err.message); }
+  }
+
+  // ฟังข้อมูลของวันที่เลือกแบบเรียลไทม์ (เปิดหลายเครื่องก็เห็นตรงกัน)
+  function watch(){
+    if(unsub) unsub();
+    $('list').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    unsub = col.where('date', '==', $('date').value).onSnapshot(snap => {
+      items = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+      renderList();
+    }, err => { $('list').innerHTML = '<div class="empty">โหลดข้อมูลไม่ได้: ' + esc(err.message) + '</div>'; });
   }
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -172,8 +199,10 @@
     const d = new Date(date + 'T00:00');
     const isToday = date === toISO(new Date());
     $('dateLabel').innerHTML = d.toLocaleDateString('th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) + (isToday ? '<span class="chip">วันนี้</span>' : '');
+    watch();
+  }
 
-    const items = load().filter(x => x.date === date);
+  function renderList(){
     $('count').textContent = items.length;
     if(!items.length){ $('list').innerHTML = '<div class="empty">ยังไม่มีข้อมูลในวันนี้</div>'; return; }
     let w = 0, t = 0;
@@ -183,7 +212,7 @@
         <div class="top"><span>${esc(x.pond)} · ${esc(x.buyer)}</span><span class="amt">${fmt(amt)} ฿</span></div>
         <div class="meta">${x.size ? 'ขนาด ' + fmt(x.size) + ' ตัว/กก. · ' : ''}${fmt(x.weight)} กก. × ${fmt(x.price)} บาท</div>
         ${x.note ? `<div class="meta">${esc(x.note)}</div>` : ''}
-      </div><button class="del" onclick="delEntry(${x.id})" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`;
+      </div><button class="del" onclick="delEntry('${x.id}')" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`;
     }).join('') + `<div class="summary"><span>รวม ${fmt(w)} กก.</span><span>${fmt(t)} บาท</span></div>`;
   }
 
