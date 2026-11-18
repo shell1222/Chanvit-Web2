@@ -163,6 +163,30 @@
 <div class="tabs">
   <button class="tab active" data-tab="entry" onclick="showTab('entry')"><i class="ti ti-gavel"></i> ลงข้อมูลประมูล</button>
   <button class="tab" data-tab="summary" onclick="showTab('summary')"><i class="ti ti-chart-bar"></i> สรุปกำไร</button>
+  <button class="tab" data-tab="info" onclick="showTab('info')"><i class="ti ti-truck"></i> ข้อมูลกุ้ง</button>
+</div>
+
+<!-- ===== แท็บข้อมูลกุ้ง ===== -->
+<div class="container" id="tab-info" hidden>
+  <div class="card">
+    <h2><i class="ti ti-truck"></i> ลงข้อมูลกุ้ง</h2>
+    <form id="iForm" onsubmit="addInfo(event)">
+      <div class="field"><label>วันที่ซื้อ</label><input type="date" id="iDate" required></div>
+      <div class="row2">
+        <div class="field"><label>ชื่อเจ้าของบ่อ (ลูกค้า)</label><input id="iOwner" list="ownerList" placeholder="ชื่อลูกค้า" required></div>
+        <div class="field"><label>คนที่เข้าไปซื้อกุ้ง</label><input id="iBuyer" list="buyerList" placeholder="ชื่อคนซื้อ" required></div>
+      </div>
+      <div class="field"><label>ทะเบียนรถที่บรรทุกลูกกุ้งไปขาย</label><input id="iPlate" list="plateList" placeholder="เช่น 1กข 1234 ราชบุรี"></div>
+      <datalist id="ownerList"></datalist><datalist id="buyerList"></datalist><datalist id="plateList"></datalist>
+      <button class="btn full" type="submit"><i class="ti ti-device-floppy"></i> บันทึก</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-list-details"></i> รายการข้อมูลกุ้ง <span id="iCount" class="chip">0</span></h2>
+    <div class="field"><input id="iSearch" placeholder="ค้นหา ชื่อลูกค้า / คนซื้อ / ทะเบียนรถ" oninput="renderInfo()"></div>
+    <div id="iList"></div>
+  </div>
 </div>
 
 <!-- ===== แท็บสรุปกำไร ===== -->
@@ -426,7 +450,9 @@
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
     $('tab-entry').hidden = t !== 'entry';
     $('tab-summary').hidden = t !== 'summary';
+    $('tab-info').hidden = t !== 'info';
     if(t === 'summary') loadSummary();
+    if(t === 'info') watchInfo();
     window.scrollTo(0, 0);
   }
 
@@ -523,12 +549,63 @@
     }).join('');
   }
 
+  // ===== ข้อมูลกุ้ง =====
+  const infoCol = db.collection('shrimp_info');
+  let infos = [], unsubInfo = null;
+
+  function watchInfo(){
+    if(unsubInfo) return; // ฟังครั้งเดียว อัปเดตเรียลไทม์
+    $('iList').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    unsubInfo = infoCol.onSnapshot(snap => {
+      infos = snap.docs.map(d => ({id: d.id, ...d.data()}))
+        .sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt||0) - (a.createdAt||0));
+      fillLists(); renderInfo();
+    }, err => { unsubInfo = null; $('iList').innerHTML = '<div class="empty">โหลดข้อมูลไม่ได้: ' + esc(err.message) + '</div>'; });
+  }
+
+  // รายชื่อที่เคยกรอก ให้เลือกซ้ำได้เร็ว
+  function fillLists(){
+    const uniq = k => [...new Set(infos.map(x => x[k]).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'th'));
+    [['ownerList','owner'],['buyerList','buyer'],['plateList','plate']].forEach(([id,k]) =>
+      $(id).innerHTML = uniq(k).map(v => `<option value="${esc(v)}">`).join(''));
+  }
+
+  async function addInfo(e){
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      await infoCol.add({ date: $('iDate').value, owner: $('iOwner').value.trim(), buyer: $('iBuyer').value.trim(), plate: $('iPlate').value.trim(), createdAt: Date.now() });
+      ['iOwner','iBuyer','iPlate'].forEach(id => $(id).value = '');
+      toast('บันทึกแล้ว');
+    } catch(err){ alert('บันทึกไม่สำเร็จ: ' + err.message); }
+    btn.disabled = false;
+  }
+
+  async function delInfo(id){
+    if(!confirm('ลบรายการนี้?')) return;
+    try { await infoCol.doc(id).delete(); toast('ลบแล้ว'); }
+    catch(err){ alert('ลบไม่สำเร็จ: ' + err.message); }
+  }
+
+  function renderInfo(){
+    const q = $('iSearch').value.trim().toLowerCase();
+    const rows = q ? infos.filter(x => [x.owner, x.buyer, x.plate].some(v => (v||'').toLowerCase().includes(q))) : infos;
+    $('iCount').textContent = rows.length;
+    if(!rows.length){ $('iList').innerHTML = `<div class="empty">${q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีข้อมูล'}</div>`; return; }
+    $('iList').innerHTML = rows.map(x => `<div class="entry"><div class="main">
+        <div class="top"><span>${esc(x.owner)}</span><span class="meta" style="margin:0">${new Date(x.date + 'T00:00').toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit'})}</span></div>
+        <div class="meta"><i class="ti ti-user"></i> คนซื้อ: ${esc(x.buyer)}</div>
+        <div class="meta"><i class="ti ti-truck"></i> ทะเบียนรถ: ${x.plate ? esc(x.plate) : '-'}</div>
+      </div><button class="del" onclick="delInfo('${x.id}')" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`).join('');
+  }
+
   function gotoDate(d){ $('date').value = d; render(); showTab('entry'); }
 
   let tt;
   function toast(msg){ $('toast').textContent = msg; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 1500); }
 
   $('date').value = toISO(new Date());
+  $('iDate').value = toISO(new Date());
   render();
   preset('month');
 </script>
