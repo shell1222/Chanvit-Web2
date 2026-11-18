@@ -89,6 +89,16 @@
   .del{border:none;background:var(--danger-light);color:var(--danger);border-radius:8px;width:32px;height:32px;cursor:pointer;flex-shrink:0;}
   .empty{text-align:center;color:var(--text-secondary);font-size:14px;padding:16px 0;}
   .summary{display:flex;justify-content:space-between;font-size:14px;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border);font-weight:600;}
+  .ponds-title{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text-secondary);}
+  .ponds{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px;}
+  .pond-card{text-align:left;border:1px solid var(--border);background:#fcfdfc;border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;color:var(--text);}
+  .pond-card .pname{font-weight:700;color:var(--primary-dark);display:flex;align-items:center;gap:5px;}
+  .pond-card .pname i{color:var(--brand);}
+  .pond-card .pmeta{font-size:12px;color:var(--text-secondary);margin-top:3px;}
+  .pond-card .pamt{font-size:14px;font-weight:600;margin-top:2px;}
+  .pond-card.active{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 2px var(--primary-light);}
+  .group-head{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;color:var(--primary-dark);background:var(--primary-light);border-radius:8px;padding:6px 10px;margin:10px 0 6px;}
+  .group-head:first-child{margin-top:0;}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--primary-dark);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
@@ -117,6 +127,8 @@
       <button class="icon-btn" onclick="shiftDate(1)" aria-label="วันถัดไป"><i class="ti ti-chevron-right"></i></button>
     </div>
     <div class="date-label" id="dateLabel"></div>
+    <div class="ponds-title">บ่อที่มีประมูลวันนี้ <span id="pondCount" class="chip">0</span></div>
+    <div class="ponds" id="ponds"></div>
   </div>
 
   <!-- ส่วนที่ 2: ลงข้อมูลการประมูล -->
@@ -140,7 +152,7 @@
 
   <!-- รายการของวันที่เลือก -->
   <div class="card">
-    <h2><i class="ti ti-list-details"></i> รายการวันนี้ <span id="count" class="chip">0</span></h2>
+    <h2><i class="ti ti-list-details"></i> <span id="listTitle">รายการวันนี้</span> <span id="count" class="chip">0</span></h2>
     <div id="list"></div>
   </div>
 </div>
@@ -151,7 +163,7 @@
   const col = db.collection('auctions');
   const $ = id => document.getElementById(id);
   const fmt = n => Number(n || 0).toLocaleString('th-TH', {maximumFractionDigits: 2});
-  let items = [], unsub = null;
+  let items = [], unsub = null, selPond = null;
 
   function toISO(d){ const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
   function shiftDate(n){ const d = new Date($('date').value + 'T00:00'); d.setDate(d.getDate()+n); $('date').value = toISO(d); render(); }
@@ -199,21 +211,60 @@
     const d = new Date(date + 'T00:00');
     const isToday = date === toISO(new Date());
     $('dateLabel').innerHTML = d.toLocaleDateString('th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) + (isToday ? '<span class="chip">วันนี้</span>' : '');
+    selPond = null;
+    $('ponds').innerHTML = '';
     watch();
   }
 
+  // จัดกลุ่มรายการตามบ่อ (เรียงตามเลขบ่อ)
+  function groupByPond(list){
+    const g = {};
+    list.forEach(x => (g[x.pond] = g[x.pond] || []).push(x));
+    return Object.keys(g).sort((a,b) => a.localeCompare(b, 'th', {numeric:true})).map(p => ({pond:p, rows:g[p]}));
+  }
+
+  function pickPond(p){
+    selPond = (selPond === p) ? null : p;
+    if(selPond) $('pond').value = selPond;
+    renderList();
+  }
+
+  function renderPonds(groups){
+    $('pondCount').textContent = groups.length;
+    if(!groups.length){ $('ponds').innerHTML = '<div class="empty" style="padding:6px 0">ยังไม่มีบ่อที่ประมูลในวันนี้</div>'; return; }
+    $('ponds').innerHTML = groups.map(g => {
+      const w = g.rows.reduce((s,x) => s + x.weight, 0);
+      const t = g.rows.reduce((s,x) => s + x.weight * x.price, 0);
+      return `<button class="pond-card${selPond === g.pond ? ' active' : ''}" data-p="${esc(g.pond)}" onclick="pickPond(this.dataset.p)">
+        <div class="pname"><i class="ti ti-ripple"></i> ${esc(g.pond)}</div>
+        <div class="pmeta">${g.rows.length} รายการ · ${fmt(w)} กก.</div>
+        <div class="pamt">${fmt(t)} ฿</div></button>`;
+    }).join('');
+  }
+
   function renderList(){
-    $('count').textContent = items.length;
-    if(!items.length){ $('list').innerHTML = '<div class="empty">ยังไม่มีข้อมูลในวันนี้</div>'; return; }
-    let w = 0, t = 0;
-    $('list').innerHTML = items.map(x => {
-      const amt = x.weight * x.price; w += x.weight; t += amt;
-      return `<div class="entry"><div class="main">
-        <div class="top"><span>${esc(x.pond)} · ${esc(x.buyer)}</span><span class="amt">${fmt(amt)} ฿</span></div>
-        <div class="meta">${x.size ? 'ขนาด ' + fmt(x.size) + ' ตัว/กก. · ' : ''}${fmt(x.weight)} กก. × ${fmt(x.price)} บาท</div>
-        ${x.note ? `<div class="meta">${esc(x.note)}</div>` : ''}
-      </div><button class="del" onclick="delEntry('${x.id}')" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`;
-    }).join('') + `<div class="summary"><span>รวม ${fmt(w)} กก.</span><span>${fmt(t)} บาท</span></div>`;
+    const groups = groupByPond(items);
+    if(selPond && !groups.some(g => g.pond === selPond)) selPond = null;
+    renderPonds(groups);
+    const shown = selPond ? groups.filter(g => g.pond === selPond) : groups;
+    const n = shown.reduce((s,g) => s + g.rows.length, 0);
+    $('count').textContent = n;
+    $('listTitle').textContent = selPond ? 'รายการของ ' + selPond : 'รายการวันนี้';
+    if(!n){ $('list').innerHTML = '<div class="empty">ยังไม่มีข้อมูลในวันนี้</div>'; return; }
+    let W = 0, T = 0;
+    $('list').innerHTML = shown.map(g => {
+      let w = 0, t = 0;
+      const rows = g.rows.map(x => {
+        const amt = x.weight * x.price; w += x.weight; t += amt;
+        return `<div class="entry"><div class="main">
+          <div class="top"><span>${esc(x.buyer)}</span><span class="amt">${fmt(amt)} ฿</span></div>
+          <div class="meta">${x.size ? 'ขนาด ' + fmt(x.size) + ' ตัว/กก. · ' : ''}${fmt(x.weight)} กก. × ${fmt(x.price)} บาท</div>
+          ${x.note ? `<div class="meta">${esc(x.note)}</div>` : ''}
+        </div><button class="del" onclick="delEntry('${x.id}')" aria-label="ลบ"><i class="ti ti-trash"></i></button></div>`;
+      }).join('');
+      W += w; T += t;
+      return `<div class="group-head"><span>${esc(g.pond)}</span><span>${fmt(w)} กก. · ${fmt(t)} ฿</span></div>${rows}`;
+    }).join('') + `<div class="summary"><span>รวม ${fmt(W)} กก.</span><span>${fmt(T)} บาท</span></div>`;
   }
 
   let tt;
