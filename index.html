@@ -88,6 +88,33 @@
   .entry .amt{color:var(--primary-dark);white-space:nowrap;}
   .del{border:none;background:var(--danger-light);color:var(--danger);border-radius:8px;width:32px;height:32px;cursor:pointer;flex-shrink:0;}
   .empty{text-align:center;color:var(--text-secondary);font-size:14px;padding:16px 0;}
+  [hidden]{display:none !important;}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+  .pchip{padding:7px 13px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-family:inherit;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;}
+  .pchip.active{background:var(--brand-light);border-color:var(--brand);color:var(--brand-dark);}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  @media (max-width:520px){.kpis{grid-template-columns:repeat(2,1fr);}}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px;}
+  .kpi span{display:block;font-size:12px;color:var(--text-secondary);}
+  .kpi b{display:block;font-size:18px;margin-top:4px;font-variant-numeric:tabular-nums;}
+  .kpi.main{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dark) 100%);border-color:transparent;color:#fff;}
+  .kpi.main span{color:rgba(255,255,255,.85);}
+  .kpi.main.neg{background:linear-gradient(135deg,#b23a3a 0%,var(--danger) 100%);}
+  .warn{background:var(--brand-light);color:var(--brand-dark);border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:14px;}
+  .crow{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;font-size:14px;padding:6px 0;}
+  .crow .bar{height:10px;border-radius:999px;background:var(--primary-light);overflow:hidden;}
+  .crow .bar i{display:block;height:100%;background:var(--brand);border-radius:999px;}
+  .crow b{font-variant-numeric:tabular-nums;}
+  .tbl-wrap{overflow-x:auto;}
+  .tbl{width:100%;border-collapse:collapse;font-size:13px;}
+  .tbl th,.tbl td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .tbl th:first-child,.tbl td:first-child{text-align:left;}
+  .tbl th{font-size:12px;color:var(--text-secondary);font-weight:600;}
+  .tbl tfoot td{font-weight:700;border-bottom:none;}
+  .tbl .neg,.dayrow .neg{color:var(--danger);}
+  .dayrow{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;border:none;border-bottom:1px solid var(--border);background:none;padding:10px 2px;font-family:inherit;font-size:14px;color:var(--text);cursor:pointer;text-align:left;}
+  .dayrow small{display:block;font-size:12px;color:var(--text-secondary);}
+  .dayrow b{font-variant-numeric:tabular-nums;}
   .summary{display:flex;justify-content:space-between;font-size:14px;padding-top:10px;margin-top:6px;border-top:1px dashed var(--border);font-weight:600;}
   .pond-row{width:100%;text-align:left;border:1px solid var(--border);background:#fcfdfc;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;font-family:inherit;color:var(--text);display:flex;align-items:center;gap:10px;}
   .pond-row:hover{border-color:var(--primary);}
@@ -134,10 +161,54 @@
 </div>
 
 <div class="tabs">
-  <button class="tab active"><i class="ti ti-gavel"></i> ลงข้อมูลประมูล</button>
+  <button class="tab active" data-tab="entry" onclick="showTab('entry')"><i class="ti ti-gavel"></i> ลงข้อมูลประมูล</button>
+  <button class="tab" data-tab="summary" onclick="showTab('summary')"><i class="ti ti-chart-bar"></i> สรุปกำไร</button>
 </div>
 
-<div class="container">
+<!-- ===== แท็บสรุปกำไร ===== -->
+<div class="container" id="tab-summary" hidden>
+  <div class="card">
+    <h2><i class="ti ti-calendar-stats"></i> ช่วงเวลา</h2>
+    <div class="presets">
+      <button class="pchip" data-p="month" onclick="preset('month')">เดือนนี้</button>
+      <button class="pchip" data-p="last" onclick="preset('last')">เดือนก่อน</button>
+      <button class="pchip" data-p="year" onclick="preset('year')">ปีนี้</button>
+      <button class="pchip" data-p="all" onclick="preset('all')">ทั้งหมด</button>
+    </div>
+    <div class="row2">
+      <div class="field"><label>ตั้งแต่</label><input type="date" id="sFrom" onchange="clearPreset(); loadSummary()"></div>
+      <div class="field"><label>ถึง</label><input type="date" id="sTo" onchange="clearPreset(); loadSummary()"></div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><span>ยอดขาย</span><b id="kRev">0</b></div>
+    <div class="kpi"><span>ต้นทุนรวม</span><b id="kCost">0</b></div>
+    <div class="kpi main"><span>กำไรสุทธิ</span><b id="kNet">0</b></div>
+    <div class="kpi"><span>น้ำหนักรวม</span><b id="kKg">0</b></div>
+    <div class="kpi"><span>ราคาเฉลี่ย</span><b id="kAvg">0</b></div>
+    <div class="kpi"><span>จำนวนบ่อ</span><b id="kPonds">0</b></div>
+  </div>
+  <div class="warn" id="sWarn" hidden></div>
+
+  <div class="card">
+    <h2><i class="ti ti-receipt"></i> ต้นทุนแยกตามประเภท</h2>
+    <div id="sCosts"></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-ripple"></i> กำไรแยกตามบ่อ</h2>
+    <div class="tbl-wrap"><table class="tbl" id="sPonds"></table></div>
+  </div>
+
+  <div class="card">
+    <h2><i class="ti ti-calendar-event"></i> กำไรแยกตามวัน</h2>
+    <div id="sDays"></div>
+  </div>
+</div>
+
+<!-- ===== แท็บลงข้อมูลประมูล ===== -->
+<div class="container" id="tab-entry">
   <!-- ส่วนที่ 1: เลือกวันที่ -->
   <div class="card">
     <h2><i class="ti ti-calendar"></i> วันที่ลงข้อมูล</h2>
@@ -350,11 +421,116 @@
     setTimeout(() => $('buyer').focus(), 300);
   }
 
+  // ===== แท็บ =====
+  function showTab(t){
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+    $('tab-entry').hidden = t !== 'entry';
+    $('tab-summary').hidden = t !== 'summary';
+    if(t === 'summary') loadSummary();
+    window.scrollTo(0, 0);
+  }
+
+  // ===== สรุปกำไร =====
+  const COST_TYPES = [['truck','ค่ารถบรรทุกกุ้ง'],['sorting','ค่าชุดคัด'],['ice','ค่าน้ำแข็ง'],['wash','ค่าน้ำล้าง']];
+  let curPreset = 'month', sumReq = 0;
+
+  function preset(p){
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+    let from, to;
+    if(p === 'month'){ from = new Date(y, m, 1); to = new Date(y, m + 1, 0); }
+    if(p === 'last'){ from = new Date(y, m - 1, 1); to = new Date(y, m, 0); }
+    if(p === 'year'){ from = new Date(y, 0, 1); to = new Date(y, 11, 31); }
+    $('sFrom').value = p === 'all' ? '' : toISO(from);
+    $('sTo').value = p === 'all' ? '' : toISO(to);
+    curPreset = p; markPreset(); loadSummary();
+  }
+  function clearPreset(){ curPreset = null; markPreset(); }
+  function markPreset(){ document.querySelectorAll('.pchip').forEach(b => b.classList.toggle('active', b.dataset.p === curPreset)); }
+
+  function rangeQuery(c){
+    let q = c;
+    if($('sFrom').value) q = q.where('date', '>=', $('sFrom').value);
+    if($('sTo').value) q = q.where('date', '<=', $('sTo').value);
+    return q.get();
+  }
+
+  async function loadSummary(){
+    const req = ++sumReq;
+    $('sCosts').innerHTML = $('sDays').innerHTML = '<div class="empty">กำลังโหลด...</div>';
+    $('sPonds').innerHTML = '';
+    try {
+      const [a, c] = await Promise.all([rangeQuery(col), rangeQuery(costCol)]);
+      if(req !== sumReq) return;
+      renderSummary(a.docs.map(d => d.data()), c.docs.map(d => d.data()));
+    } catch(err){ $('sDays').innerHTML = '<div class="empty">โหลดข้อมูลไม่ได้: ' + esc(err.message) + '</div>'; }
+  }
+
+  function renderSummary(auc, cst){
+    // รวมตาม "วัน+บ่อ" (หนึ่งการจับ)
+    const key = (d, p) => d + '__' + p;
+    const lots = {};
+    auc.forEach(x => {
+      const k = key(x.date, x.pond);
+      const l = lots[k] = lots[k] || {date:x.date, pond:x.pond, kg:0, rev:0, cost:0, hasCost:false};
+      l.kg += x.weight; l.rev += x.weight * x.price;
+    });
+    const byType = {truck:0, sorting:0, ice:0, wash:0};
+    cst.forEach(c => {
+      const l = lots[key(c.date, c.pond)];
+      if(!l) return; // ต้นทุนของบ่อที่ไม่มีรายการประมูลแล้ว ไม่นับ
+      l.cost = costTotal(c); l.hasCost = true;
+      COST_TYPES.forEach(([k]) => byType[k] += c[k] || 0);
+    });
+    const L = Object.values(lots);
+    const kg = L.reduce((s,l) => s + l.kg, 0), rev = L.reduce((s,l) => s + l.rev, 0), cost = L.reduce((s,l) => s + l.cost, 0), net = rev - cost;
+
+    $('kRev').textContent = fmt(rev) + ' ฿';
+    $('kCost').textContent = fmt(cost) + ' ฿';
+    $('kNet').textContent = fmt(net) + ' ฿';
+    $('kNet').parentElement.classList.toggle('neg', net < 0);
+    $('kKg').textContent = fmt(kg) + ' กก.';
+    $('kAvg').textContent = (kg ? fmt(rev / kg) : '0') + ' ฿/กก.';
+    $('kPonds').textContent = new Set(L.map(l => l.pond)).size + ' บ่อ';
+
+    const missing = L.filter(l => !l.hasCost).length;
+    $('sWarn').hidden = !missing;
+    $('sWarn').innerHTML = `<i class="ti ti-alert-triangle"></i> มี ${missing} รอบจับที่ยังไม่ลงต้นทุน กำไรที่แสดงอาจสูงกว่าจริง`;
+
+    if(!L.length){
+      $('sCosts').innerHTML = $('sDays').innerHTML = '<div class="empty">ไม่มีข้อมูลในช่วงนี้</div>';
+      $('sPonds').innerHTML = ''; return;
+    }
+
+    const maxT = Math.max(1, ...Object.values(byType));
+    $('sCosts').innerHTML = COST_TYPES.map(([k, label]) =>
+      `<div class="crow"><span>${label}</span><div class="bar"><i style="width:${byType[k] / maxT * 100}%"></i></div><b>${fmt(byType[k])} ฿</b></div>`).join('');
+
+    // ตามบ่อ
+    const ponds = {};
+    L.forEach(l => { const p = ponds[l.pond] = ponds[l.pond] || {pond:l.pond, n:0, kg:0, rev:0, cost:0}; p.n++; p.kg += l.kg; p.rev += l.rev; p.cost += l.cost; });
+    const P = Object.values(ponds).sort((a,b) => a.pond.localeCompare(b.pond, 'th', {numeric:true}));
+    const neg = v => v < 0 ? ' class="neg"' : '';
+    $('sPonds').innerHTML = `<thead><tr><th>บ่อ</th><th>รอบ</th><th>กก.</th><th>ยอดขาย</th><th>ต้นทุน</th><th>กำไร</th></tr></thead><tbody>` +
+      P.map(p => `<tr><td>${esc(p.pond)}</td><td>${p.n}</td><td>${fmt(p.kg)}</td><td>${fmt(p.rev)}</td><td>${fmt(p.cost)}</td><td${neg(p.rev - p.cost)}>${fmt(p.rev - p.cost)}</td></tr>`).join('') +
+      `</tbody><tfoot><tr><td>รวม</td><td>${L.length}</td><td>${fmt(kg)}</td><td>${fmt(rev)}</td><td>${fmt(cost)}</td><td${neg(net)}>${fmt(net)}</td></tr></tfoot>`;
+
+    // ตามวัน (ล่าสุดก่อน) — กดเพื่อไปดูวันนั้น
+    const days = {};
+    L.forEach(l => { const d = days[l.date] = days[l.date] || {date:l.date, ponds:[], rev:0, cost:0}; d.ponds.push(l.pond); d.rev += l.rev; d.cost += l.cost; });
+    $('sDays').innerHTML = Object.values(days).sort((a,b) => b.date.localeCompare(a.date)).map(d => {
+      const n = d.rev - d.cost;
+      return `<button class="dayrow" onclick="gotoDate('${d.date}')"><span>${thaiDate(d.date)}<small>${d.ponds.map(esc).join(', ')}</small></span><b${neg(n)}>${fmt(n)} ฿</b></button>`;
+    }).join('');
+  }
+
+  function gotoDate(d){ $('date').value = d; render(); showTab('entry'); }
+
   let tt;
   function toast(msg){ $('toast').textContent = msg; $('toast').classList.add('show'); clearTimeout(tt); tt = setTimeout(() => $('toast').classList.remove('show'), 1500); }
 
   $('date').value = toISO(new Date());
   render();
+  preset('month');
 </script>
 </body>
 </html>
